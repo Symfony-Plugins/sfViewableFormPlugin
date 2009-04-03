@@ -11,8 +11,9 @@
 class sfViewableForm
 {
   protected
-    $config   = array(),
-    $enhanced = array();
+    $dispatcher = null,
+    $config     = array(),
+    $enhanced   = array();
 
   /**
    * Connects to the 'template.filter_parameters' event.
@@ -27,15 +28,50 @@ class sfViewableForm
   /**
    * Constructor.
    * 
-   * @param sfApplicationConfiguration $configuration
+   * @see initialize()
    */
   public function __construct(sfApplicationConfiguration $configuration = null)
   {
-    if ($configuration && $file = $configuration->getConfigCache()->checkConfig('config/forms.yml', true))
+    $this->initialize($configuration);
+  }
+
+  /**
+   * Initialize.
+   * 
+   * @param sfApplicationConfiguration $configuration
+   */
+  public function initialize(sfApplicationConfiguration $configuration = null)
+  {
+    if ($configuration instanceof sfApplicationConfiguration)
     {
-      $config = include $file;
-      $this->setConfig($config);
+      $this->setEventDispatcher($configuration->getEventDispatcher());
+
+      if ($file = $configuration->getConfigCache()->checkConfig('config/forms.yml', true))
+      {
+        $config = include $file;
+        $this->setConfig($config);
+      }
     }
+  }
+
+  /**
+   * Returns the event dispatcher.
+   * 
+   * @return sfEventDispatcher|null
+   */
+  public function getEventDispatcher()
+  {
+    return $this->dispatcher;
+  }
+
+  /**
+   * Sets the event dispatcher.
+   * 
+   * @param sfEventDispatcher $dispatcher
+   */
+  public function setEventDispatcher(sfEventDispatcher $dispatcher)
+  {
+    $this->dispatcher = $dispatcher;
   }
 
   /**
@@ -59,6 +95,18 @@ class sfViewableForm
   }
 
   /**
+   * Returns true if the form has been enhanced.
+   * 
+   * @param  sfForm $form
+   * 
+   * @return boolean
+   */
+  public function hasEnhanced(sfForm $form)
+  {
+    return in_array($form, $this->enhanced, true);
+  }
+
+  /**
    * Enhances any forms before they're passed to the template.
    * 
    * @param  sfEvent $event
@@ -70,9 +118,14 @@ class sfViewableForm
   {
     foreach ($parameters as $parameter)
     {
-      if ($parameter instanceof sfForm && !in_array($parameter, $this->enhanced, true))
+      if ($parameter instanceof sfForm && !$this->hasEnhanced($parameter))
       {
         $this->enhanceForm($parameter);
+
+        if ($this->dispatcher)
+        {
+          $this->dispatcher->filter(new sfEvent($this, 'template.filter_form_parameter'), $parameter);
+        }
       }
     }
 
