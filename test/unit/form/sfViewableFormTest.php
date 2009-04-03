@@ -4,7 +4,7 @@ include dirname(__FILE__).'/../../bootstrap/unit.php';
 
 $t = new lime_test(11, new lime_output_color());
 
-$extra = new sfFormStrings();
+$extra = new sfViewableForm();
 $extra->setConfig(array(
   'forms' => array(
     'MyForm' => array(

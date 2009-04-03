@@ -1,14 +1,14 @@
 <?php
 
 /**
- * The sfFormStrings class is used to enhance a project's forms.
+ * The sfViewableForm class is used to enhance a project's forms.
  * 
- * @package    sfFormStringsPlugin
+ * @package    sfViewableFormPlugin
  * @subpackage form
  * @author     Kris Wallsmith <kris.wallsmith@symfony-project.com>
  * @version    SVN: $Id$
  */
-class sfFormStrings
+class sfViewableForm
 {
   protected
     $config   = array(),
