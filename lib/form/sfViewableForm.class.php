@@ -310,7 +310,7 @@ class sfViewableForm
     {
       foreach ($validator->getFields() as $v)
       {
-        $this->enhanceValidator($v, $recur);
+        $this->enhanceValidator($v, $recursive);
       }
     }
 
@@ -318,7 +318,7 @@ class sfViewableForm
     {
       foreach ($validator->getValidators() as $v)
       {
-        $this->enhanceValidator($v, $recur);
+        $this->enhanceValidator($v, $recursive);
       }
     }
   }
