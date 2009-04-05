@@ -24,3 +24,16 @@ The effect of this configuration file is just as it appears. Custom error
 messages will be added to the `sfGuardFormSignin` form, the CSS class "text"
 will be added to all instances of `sfWidgetFormInput`, and a custom error
 message will be added to all instances of `sfValidatorEmail`.
+
+## Model forms
+
+When enhancing a model form (i.e. `sfFormPropel` or `sfFormDoctrine`), the
+plugin will parse each value for object constants. For example, the following
+configuration will insert the value of `$object->getConfirmer()` into the
+`note` field's label.
+
+    # apps/*/config/forms.yml
+    forms:
+      RelationshipRequestForm:
+        note:
+          label: Please provide %confirmer% a note

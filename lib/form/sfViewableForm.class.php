@@ -139,7 +139,7 @@ class sfViewableForm
    */
   public function enhanceForm(sfForm $form)
   {
-    $this->enhanceFormFields($form->getFormFieldSchema(), get_class($form), $form->getEmbeddedForms());
+    $this->enhanceFormFields($form->getFormFieldSchema(), get_class($form), $form->getEmbeddedForms(), method_exists($form, 'getObject') ? $form->getObject() : null);
     $this->enhanced[] = $form;
   }
 
@@ -149,8 +149,9 @@ class sfViewableForm
    * @param sfFormFieldSchema $fieldSchema    Form fields to enhance
    * @param string            $formClass      The name of the form class these fields are from
    * @param array             $embeddedForms  An array of forms embedded in the fields' form
+   * @param mixed             $object         The current form's model object
    */
-  protected function enhanceFormFields(sfFormFieldSchema $fieldSchema, $formClass, array $embeddedForms = array())
+  protected function enhanceFormFields(sfFormFieldSchema $fieldSchema, $formClass, array $embeddedForms = array(), $object = null)
   {
     // loop through the fields and apply the global configuration
     foreach ($fieldSchema as $field)
@@ -160,7 +161,7 @@ class sfViewableForm
         if (isset($embeddedForms[$field->getName()]))
         {
           $form = $embeddedForms[$field->getName()];
-          $this->enhanceFormFields($field, get_class($form), $form->getEmbeddedForms());
+          $this->enhanceFormFields($field, get_class($form), $form->getEmbeddedForms(), method_exists($form, 'getObject') ? $form->getObject() : null);
         }
         else
         {
@@ -168,23 +169,23 @@ class sfViewableForm
         }
       }
 
-      $this->enhanceWidget($field->getWidget());
+      $this->enhanceWidget($field->getWidget(), $object);
 
       if ($field->hasError())
       {
         $validator = $field->getError()->getValidator();
 
-        $this->enhanceValidator($validator);
+        $this->enhanceValidator($validator, $object);
 
         if ($validator instanceof sfValidatorSchema)
         {
           if ($preValidator = $validator->getPreValidator())
           {
-            $this->enhanceValidator($preValidator, true);
+            $this->enhanceValidator($preValidator, $object, true);
           }
           if ($postValidator = $validator->getPostValidator())
           {
-            $this->enhanceValidator($postValidator, true);
+            $this->enhanceValidator($postValidator, $object, true);
           }
         }
       }
@@ -197,6 +198,8 @@ class sfViewableForm
       {
         foreach ($this->config['forms'][$class] as $name => $params)
         {
+          $params = $this->replaceConstants($params, $object);
+
           if (preg_match('/^_(pre|post)_validator$/', $name, $match))
           {
             $method = 'get'.ucwords($match[1]).'Validator';
@@ -223,6 +226,11 @@ class sfViewableForm
             $fieldSchema->getWidget()->setHelp($name, $params['help']);
           }
 
+          if (isset($params['attributes']))
+          {
+            $this->extendWidgetAttributes($widget, $params['attributes'], $object);
+          }
+
           if ($validator && isset($params['messages']))
           {
             $validator->setMessages(array_merge($validator->getMessages(), $params['messages']));
@@ -236,39 +244,22 @@ class sfViewableForm
    * Enhances a widget.
    * 
    * @param sfWidget $widget
+   * @param mixed    $object
    */
-  public function enhanceWidget(sfWidget $widget)
+  public function enhanceWidget(sfWidget $widget, $object = null)
   {
     foreach (self::getLineage($widget) as $class)
     {
       if (isset($this->config['widgets'][$class]))
       {
-        $config = $this->config['widgets'][$class];
-
-        if (!isset($config['options']) && !isset($config['attributes']))
-        {
-          $config = array('attributes' => $config);
-        }
-
-        $config = array_merge(array('options' => array(), 'attributes' => array()), $config);
+        $config = $this->processWidgetConfig($this->config['widgets'][$class]);
 
         foreach ($config['options'] as $name => $value)
         {
           $widget->setOption($name, $value);
         }
 
-        foreach ($config['attributes'] as $name => $value)
-        {
-          if ('class' == $name)
-          {
-            // non-destructive
-            $widget->setAttribute($name, implode(' ', array_merge(explode(' ', $widget->getAttribute('class')), array($value))));
-          }
-          else
-          {
-            $widget->setAttribute($name, $value);
-          }
-        }
+        $this->extendWidgetAttributes($widget, $config['attributes'], $object);
       }
     }
   }
@@ -277,22 +268,16 @@ class sfViewableForm
    * Enhances a validator.
    * 
    * @param sfValidatorBase $validator
+   * @param mixed           $object
    * @param boolean         $recursive Enhance validator schema recursively
    */
-  public function enhanceValidator(sfValidatorBase $validator, $recursive = false)
+  public function enhanceValidator(sfValidatorBase $validator, $object = null, $recursive = false)
   {
     foreach (self::getLineage($validator) as $class)
     {
       if (isset($this->config['validators'][$class]))
       {
-        $config = $this->config['validators'][$class];
-
-        if (!isset($config['options']) && !isset($config['messages']))
-        {
-          $config = array('messages' => $config);
-        }
-
-        $config = array_merge(array('options' => array(), 'messages' => array()), $config);
+        $config = $this->processValidatorConfig($this->config['validators'][$class]);
 
         foreach ($config['options'] as $name => $value)
         {
@@ -310,7 +295,7 @@ class sfViewableForm
     {
       foreach ($validator->getFields() as $v)
       {
-        $this->enhanceValidator($v, $recursive);
+        $this->enhanceValidator($v, $object, $recursive);
       }
     }
 
@@ -318,9 +303,113 @@ class sfViewableForm
     {
       foreach ($validator->getValidators() as $v)
       {
-        $this->enhanceValidator($v, $recursive);
+        $this->enhanceValidator($v, $object, $recursive);
       }
     }
+  }
+
+  /**
+   * Extends a widget's attributes.
+   * 
+   * @param sfWidget $widget
+   * @param array    $attributes
+   * @param mixed    $object
+   */
+  protected function extendWidgetAttributes(sfWidget $widget, array $attributes, $object = null)
+  {
+    foreach ($attributes as $name => $value)
+    {
+      if ('class' == $name)
+      {
+        // non-destructive
+        $widget->setAttribute($name, implode(' ', array_merge(explode(' ', $widget->getAttribute('class')), array($value))));
+      }
+      else
+      {
+        $widget->setAttribute($name, $value);
+      }
+    }
+  }
+
+  /**
+   * Processes an array of widget configuration values.
+   * 
+   * @param  array $config
+   * @param  mixed $object
+   * 
+   * @return array An associative array of options and attributes
+   */
+  protected function processWidgetConfig(array $config, $object = null)
+  {
+    if (!isset($config['options']) && !isset($config['attributes']))
+    {
+      $config = array('attributes' => $config);
+    }
+
+    $config = array_merge(array('options' => array(), 'attributes' => array()), $config);
+    $config = $this->replaceConstants($config, $object);
+
+    return $config;
+  }
+
+  /**
+   * Processes an array of validator configuration values.
+   * 
+   * @param  array $config
+   * @param  mixed $object
+   * 
+   * @return array An associative array of options and attributes
+   */
+  protected function processValidatorConfig(array $config, $object = null)
+  {
+    if (!isset($config['options']) && !isset($config['messages']))
+    {
+      $config = array('messages' => $config);
+    }
+
+    $config = array_merge(array('options' => array(), 'messages' => array()), $config);
+    $config = $this->replaceConstants($config, $object);
+
+    return $config;
+  }
+
+  /**
+   * Replaces constants in a string.
+   * 
+   * If $subject is an array it is processed recursively.
+   * 
+   * @param  string|array $subject
+   * @param  mixed        $object
+   * 
+   * @return string
+   */
+  protected function replaceConstants($subject, $object = null)
+  {
+    if (is_array($subject))
+    {
+      foreach ($subject as $key => $value)
+      {
+        $subject[$key] = $this->replaceConstants($value, $object);
+      }
+
+      return $subject;
+    }
+
+    if (is_null($object) || false === strpos($subject, '%'))
+    {
+      return $subject;
+    }
+
+    if (preg_match_all('/%(\w+)%/', $subject, $matches))
+    {
+      foreach ($matches[1] as $i => $name)
+      {
+        $method = 'get'.sfInflector::camelize($name);
+        $subject = str_replace($matches[0][$i], $object->$method(), $subject);
+      }
+    }
+
+    return $subject;
   }
 
   /**
