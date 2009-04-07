@@ -322,7 +322,8 @@ class sfViewableForm
       if ('class' == $name)
       {
         // non-destructive
-        $widget->setAttribute($name, implode(' ', array_merge(explode(' ', $widget->getAttribute('class')), array($value))));
+        $current = $widget->getAttribute('class');
+        $widget->setAttribute($name, $current ? $current.' '.$value : $value);
       }
       else
       {
