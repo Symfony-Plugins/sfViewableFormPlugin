@@ -238,7 +238,12 @@ class sfViewableForm
 
           if (isset($params['label']))
           {
-            $widget->setLabel($params['label']);
+            $fieldSchema->getWidget()->setLabel($name, $params['label']);
+          }
+
+          if (isset($params['default']))
+          {
+            $fieldSchema->getWidget()->setDefault($name, $params['default']);
           }
 
           if (isset($params['help']))
