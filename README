@@ -7,10 +7,13 @@ configuration file. Once this plugin in installed and enabled you can create a
     # apps/*/config/forms.yml
     forms:
       sfGuardFormSignin:
+        _formatter: mySigninFormFormatter
         username:
           help: Please enter the username you selected during signup.
         _post_validator:
           invalid: The username and password you entered were not recognized.
+      sfGuardUserForm:
+        _formatter: list
 
     widgets:
       sfWidgetFormInput:
@@ -20,10 +23,16 @@ configuration file. Once this plugin in installed and enabled you can create a
       sfValidatorEmail:
         invalid: '"%value%" is not a valid email address.'
 
+    formatters:
+      list:   myWidgetFormSchemaFormatterList
+      custom: myWidgetFormSchemaFormatterCustom
+
 The effect of this configuration file is just as it appears. Custom error
 messages will be added to the `sfGuardFormSignin` form, the CSS class "text"
 will be added to all instances of `sfWidgetFormInput`, and a custom error
-message will be added to all instances of `sfValidatorEmail`.
+message will be added to all instances of `sfValidatorEmail`. The
+`sfGuardFormSignin` form will use the `mySigninFormFormatter` formatter and
+`sfGuardUserForm` will use the `myWidgetFormSchemaFormatterList` formatter.
 
 ## Model forms
 

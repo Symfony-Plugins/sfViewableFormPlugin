@@ -153,6 +153,13 @@ class sfViewableForm
    */
   protected function enhanceFormFields(sfFormFieldSchema $fieldSchema, $formClass, array $embeddedForms = array(), $object = null)
   {
+    // enhance schemas
+    $this->enhanceWidget($fieldSchema->getWidget(), $object);
+    if ($fieldSchema->hasError())
+    {
+      $this->enhanceValidator($fieldSchema->getError()->getValidator(), $object);
+    }
+
     // loop through the fields and apply the global configuration
     foreach ($fieldSchema as $field)
     {
@@ -199,6 +206,19 @@ class sfViewableForm
         foreach ($this->config['forms'][$class] as $name => $params)
         {
           $params = $this->replaceConstants($params, $object);
+
+          if ('_formatter' == $name)
+          {
+            $fieldSchema->getWidget()->setFormFormatterName($params);
+
+            // parameter can be a class name
+            if (class_exists($params) && is_subclass_of($params, 'sfWidgetFormSchemaFormatter'))
+            {
+              $fieldSchema->getWidget()->addFormFormatter($params, new $params($fieldSchema->getWidget()));
+            }
+
+            continue;
+          }
 
           if (preg_match('/^_(pre|post)_validator$/', $name, $match))
           {
@@ -248,6 +268,17 @@ class sfViewableForm
    */
   public function enhanceWidget(sfWidget $widget, $object = null)
   {
+    // form formatters
+    if ($widget instanceof sfWidgetFormSchema)
+    {
+      $name = $widget->getFormFormatterName();
+      if (isset($this->config['formatters'][$name]))
+      {
+        $formatter = $this->config['formatters'][$name];
+        $widget->addFormFormatter($name, new $formatter($widget));
+      }
+    }
+
     foreach (self::getLineage($widget) as $class)
     {
       if (isset($this->config['widgets'][$class]))
