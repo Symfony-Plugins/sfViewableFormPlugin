@@ -126,10 +126,85 @@ class sfViewableForm
         {
           $this->dispatcher->filter(new sfEvent($this, 'template.filter_form_parameter'), $parameter);
         }
+
+        if ($parameter->hasErrors())
+        {
+          $event = $this->dispatcher->notifyUntil(new sfEvent($parameter, 'form.validation_failure'));
+          if (!$event->isProcessed())
+          {
+            $this->handleFormErrors($parameter);
+          }
+        }
       }
     }
 
     return $parameters;
+  }
+
+  /**
+   * Handles a form with validation errors.
+   * 
+   * @param sfForm $form
+   */
+  public function handleFormErrors(sfForm $form)
+  {
+    $context  = sfContext::getInstance();
+    $request  = $context->getRequest();
+    $response = $context->getResponse();
+
+    if ($status = sfConfig::get('app_viewable_form_validation_error_http_status', false))
+    {
+      $response->setStatusCode($status);
+    }
+
+    if ($request->isXmlHttpRequest() && sfConfig::get('app_viewable_form_send_ajax_json_errors'))
+    {
+      $response->setContentType('application/json');
+      $response->setContent(json_encode($this->mapErrorSchemaToArray($form->getErrorSchema()))."\n");
+      $response->send();
+
+      throw new sfStopException();
+    }
+  }
+
+  /**
+   * Converts an error schema to an array of scalars.
+   * 
+   * @return array
+   */
+  protected function mapErrorSchemaToArray(sfValidatorErrorSchema $errors)
+  {
+    $array = array();
+    foreach ($errors->getNamedErrors() as $field => $error)
+    {
+      if ($error instanceof sfValidatorErrorSchema)
+      {
+        $array[$field] = $this->mapErrorSchemaToArray($error);
+      }
+      else
+      {
+        $array[$field] = $error->getMessage();
+      }
+    }
+
+    $global = array();
+    foreach ($errors->getGlobalErrors() as $error)
+    {
+      if ($error instanceof sfValidatorErrorSchema)
+      {
+        $global[] = $this->mapErrorSchemaToArray($error);
+      }
+      else
+      {
+        $global[] = $error->getMessage();
+      }
+    }
+
+    $array = array_merge(array(
+      sfConfig::get('app_viewable_form_global_errors_json_key', '_global_errors') => $global,
+    ), $array);
+
+    return $array;
   }
 
   /**

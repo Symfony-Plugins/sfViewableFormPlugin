@@ -1,0 +1,5 @@
+# all:
+#   viewable_form:
+#     validation_error_http_status: false           # response status is not modified if false
+#     send_ajax_json_errors:        false           # sends serialized JSON error schema in response content
+#     global_errors_json_key:       _global_errors  # key to use when serializing global errors to JSON
