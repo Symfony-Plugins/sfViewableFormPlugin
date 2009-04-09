@@ -363,14 +363,14 @@ class sfViewableForm
     {
       if (isset($this->config['widgets'][$class]))
       {
-        $config = $this->processWidgetConfig($this->config['widgets'][$class]);
+        $config = $this->processWidgetConfig($this->config['widgets'][$class], $object);
 
         foreach ($config['options'] as $name => $value)
         {
           $widget->setOption($name, $value);
         }
 
-        $this->extendWidgetAttributes($widget, $config['attributes'], $object);
+        $this->extendWidgetAttributes($widget, $config['attributes']);
       }
     }
   }
@@ -426,7 +426,7 @@ class sfViewableForm
    * @param array    $attributes
    * @param mixed    $object
    */
-  protected function extendWidgetAttributes(sfWidget $widget, array $attributes, $object = null)
+  protected function extendWidgetAttributes(sfWidget $widget, array $attributes)
   {
     foreach ($attributes as $name => $value)
     {
