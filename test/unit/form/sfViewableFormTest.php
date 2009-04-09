@@ -2,36 +2,71 @@
 
 include dirname(__FILE__).'/../../bootstrap/unit.php';
 
-$t = new lime_test(11, new lime_output_color());
+$t = new lime_test(17, new lime_output_color());
 
-$extra = new sfViewableForm();
-$extra->setConfig(array(
-  'forms' => array(
-    'MyForm' => array(
-      '_post_validator' => array(
-        'invalid' => 'The two email addresses must match.',
-      ),
-      'email' => array(
-        'help' => 'i.e. john@example.com',
-        'label' => 'Your email address',
-      ),
-    ),
-  ),
-  'validators' => array(
-    'sfValidatorEmail' => array(
-      'invalid' => '"%value%" is not a valid email address.',
-    ),
-    'sfValidatorString' => array(
-      'required' => 'This is a required value.',
-    ),
-  ),
-  'widgets' => array(
-    'sfWidgetFormInput' => array(
-      'class' => 'extra_class',
-      'foo'   => 'bar',
-    ),
-  ),
-));
+$yaml = <<<YML
+catalogue: forms
+
+formatters:
+  table:  MyTableFormatter
+
+forms:
+  MyForm:
+    _formatter: MyCustomFormatter
+    _catalogue: my_form_catalogue
+    _post_validator:
+      invalid: The two email addresses must match.
+    email:
+      help:    i.e. john@example.com
+      label:   Your email address
+      default: john@example.com
+    email_again:
+      help:    'Current email is "%%email%%".'
+
+validators:
+  sfValidatorEmail:
+    invalid: '"%value%" is not a valid email address.'
+  sfValidatorBase:
+    required: This is a required value.
+
+widgets:
+  sfWidgetFormInput:
+    class: extra_class
+    foo:   bar
+YML;
+
+function enhance_form($form)
+{
+  static $config;
+  global $yaml;
+
+  if (!$config)
+  {
+    $config = sfYaml::load($yaml);
+  }
+
+  $extra = new sfViewableForm();
+  $extra->setConfig($config);
+  $extra->enhanceForm($form);
+
+  return $form;
+}
+
+class MyTableFormatter extends sfWidgetFormSchemaFormatterTable
+{
+}
+
+class MyCustomFormatter extends sfWidgetFormSchemaFormatterList
+{
+}
+
+class MyFormObject
+{
+  public function __call($method, $arguments)
+  {
+    return $method;
+  }
+}
 
 class MyForm extends sfForm
 {
@@ -49,6 +84,11 @@ class MyForm extends sfForm
 
     $this->mergePostValidator(new sfValidatorSchemaCompare('email', '==', 'email_again'));
   }
+
+  public function getObject()
+  {
+    return new MyFormObject();
+  }
 }
 
 class AnotherForm extends sfForm
@@ -59,34 +99,56 @@ class AnotherForm extends sfForm
   }
 }
 
-// ->>enhanceForm()
-$t->diag('->enhanceForm()');
+// formatter
+$t->diag('formatter');
+
+$form = new sfForm();
+enhance_form($form);
+
+$t->is($form->getWidgetSchema()->getFormFormatter()->getTranslationCatalogue(), 'forms', '->enhanceForm() sets a global translation catalogue');
+$t->isa_ok($form->getWidgetSchema()->getFormFormatter(), 'MyTableFormatter', '->enhanceForm() sets global form formatter names');
+
+// widgets
+$t->diag('widgets');
 
 $form = new MyForm();
-$extra->enhanceForm($form);
+enhance_form($form);
 
 $row = $form['email']->renderRow();
 
 $t->like($row, '/foo="bar"/', '->enhanceForm() sets widget attributes based on widget class name');
 $t->like($row, '/class="form_class extra_class"/', '->enhanceForm() adds to an existing class name non-destructively');
 $t->like($row, '/Your email address/', '->enhanceForm() adds labels based on form class name');
-$t->like($row, '/i\.e\. john@example\.com/', '->enhanceForm() adds helps based on form class name');  
+$t->like($row, '/i\.e\. john@example\.com/', '->enhanceForm() adds helps based on form class name');
+$t->like($row, '/value="john@example\.com"/', '->enhanceForm() adds defaults based on form class name');
+$t->isa_ok($form->getWidgetSchema()->getFormFormatter(), 'MyCustomFormatter', '->enhanceForm() sets the form formatter based on form class name');
+$t->is($form->getWidgetSchema()->getFormFormatter()->getTranslationCatalogue(), 'my_form_catalogue', '->enhanceForm() sets the translation catalogue based on form class name');
+
+$row = $form['email_again']->renderRow();
+
+$t->like($row, '/Current email is "getEmail"./', '->enhanceForm() substitutes values from object');
+
+// validators
+$t->diag('validators');
 
 $form = new MyForm();
 $form->bind(array('email' => 'foo'));
-$extra->enhanceForm($form);
+enhance_form($form);
 
 $t->like($form['email']->renderRow(), '/"foo" is not a valid email address\./', '->enhanceForm() sets validator messages based on validator class name');
 $t->like($form['email_again']->renderRow(), '/This is a required value\./', '->enhanceForm() sets validator messages based on an ancestor validator class name');
 
 $form = new MyForm();
 $form->bind(array('email' => 'abc@example.com', 'email_again' => 'def@example.com'));
-$extra->enhanceForm($form);
+enhance_form($form);
 
 $t->like($form['email']->renderRow(), '/The two email addresses must match\./', '->enhanceForm() set post validator messages based on form class name');
 
+// embedded forms
+$t->diag('embedded forms');
+
 $form = new AnotherForm();
-$extra->enhanceForm($form);
+enhance_form($form);
 
 $row = $form['embedded']->renderRow();
 

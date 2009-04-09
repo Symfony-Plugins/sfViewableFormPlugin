@@ -228,11 +228,13 @@ class sfViewableForm
    */
   protected function enhanceFormFields(sfFormFieldSchema $fieldSchema, $formClass, array $embeddedForms = array(), $object = null)
   {
+    $widgetSchema = $fieldSchema->getWidget();
+
     // enhance schemas
-    $this->enhanceWidget($fieldSchema->getWidget(), $object);
+    $this->enhanceWidget($widgetSchema, $object);
     if ($fieldSchema->hasError())
     {
-      $this->enhanceValidator($fieldSchema->getError()->getValidator(), $object);
+      $this->enhanceValidator($fieldSchema->getError()->getValidator(), $object, $widgetSchema->getFormFormatter());
     }
 
     // loop through the fields and apply the global configuration
@@ -250,25 +252,12 @@ class sfViewableForm
           $this->enhanceFormFields($field, $formClass);
         }
       }
-
-      $this->enhanceWidget($field->getWidget(), $object);
-
-      if ($field->hasError())
+      else
       {
-        $validator = $field->getError()->getValidator();
-
-        $this->enhanceValidator($validator, $object);
-
-        if ($validator instanceof sfValidatorSchema)
+        $this->enhanceWidget($field->getWidget(), $object);
+        if ($field->hasError())
         {
-          if ($preValidator = $validator->getPreValidator())
-          {
-            $this->enhanceValidator($preValidator, $object, true);
-          }
-          if ($postValidator = $validator->getPostValidator())
-          {
-            $this->enhanceValidator($postValidator, $object, true);
-          }
+          $this->enhanceValidator($field->getError()->getValidator(), $object, $widgetSchema->getFormFormatter());
         }
       }
     }
@@ -278,34 +267,50 @@ class sfViewableForm
     {
       if (isset($this->config['forms'][$class]))
       {
-        foreach ($this->config['forms'][$class] as $name => $params)
+        $skip = array();
+
+        // formatter
+        if (isset($this->config['forms'][$class]['_formatter']))
         {
-          $params = $this->replaceConstants($params, $object);
+          $name = $this->config['forms'][$class]['_formatter'];
+          $widgetSchema->addFormFormatter($name, $this->getFormFormatter($widgetSchema, $name));
+          $widgetSchema->setFormFormatterName($name);
 
-          if ('_formatter' == $name)
+          $skip[] = '_formatter';
+        }
+
+        // catalogue
+        if (isset($this->config['forms'][$class]['_catalogue']))
+        {
+          $widgetSchema->getFormFormatter()->setTranslationCatalogue($this->config['forms'][$class]['_catalogue']);
+
+          $skip[] = '_catalogue';
+        }
+
+        // pre and post validators
+        foreach (array('pre', 'post') as $prefix)
+        {
+          $key = sprintf('_%s_validator', $prefix);
+          if (isset($this->config['forms'][$class][$key]))
           {
-            $fieldSchema->getWidget()->setFormFormatterName($params);
-
-            // parameter can be a class name
-            if (class_exists($params) && is_subclass_of($params, 'sfWidgetFormSchemaFormatter'))
-            {
-              $fieldSchema->getWidget()->addFormFormatter($params, new $params($fieldSchema->getWidget()));
-            }
-
-            continue;
-          }
-
-          if (preg_match('/^_(pre|post)_validator$/', $name, $match))
-          {
-            $method = 'get'.ucwords($match[1]).'Validator';
-
+            $method = sprintf('get%sValidator', ucfirst($prefix));
             if (($error = $fieldSchema->getError()) && ($validator = $error->getValidator()->$method()))
             {
-              $validator->setMessages(array_merge($validator->getMessages(), $params));
+              $validator->setMessages(array_merge($validator->getMessages(), $this->config['forms'][$class][$key]));
             }
 
+            $skip[] = $key;
+          }
+        }
+
+        foreach ($this->config['forms'][$class] as $name => $params)
+        {
+          if (in_array($name, $skip))
+          {
             continue;
           }
+
+          $params = $this->replaceConstants($params, $object, $widgetSchema->getFormFormatter());
 
           $field = $fieldSchema[$name];
           $widget = $field->getWidget();
@@ -348,14 +353,19 @@ class sfViewableForm
    */
   public function enhanceWidget(sfWidget $widget, $object = null)
   {
-    // form formatters
     if ($widget instanceof sfWidgetFormSchema)
     {
+      // formatter
       $name = $widget->getFormFormatterName();
       if (isset($this->config['formatters'][$name]))
       {
-        $formatter = $this->config['formatters'][$name];
-        $widget->addFormFormatter($name, new $formatter($widget));
+        $widget->addFormFormatter($name, $this->getFormFormatter($widget, $this->config['formatters'][$name]));
+      }
+
+      // translation catalogue
+      if (isset($this->config['catalogue']))
+      {
+        $widget->getFormFormatter()->setTranslationCatalogue($this->config['catalogue']);
       }
     }
 
@@ -379,16 +389,17 @@ class sfViewableForm
    * Enhances a validator.
    * 
    * @param sfValidatorBase $validator
-   * @param mixed           $object
-   * @param boolean         $recursive Enhance validator schema recursively
+   * @param mixed $object
+   * @param sfWidgetFormSchemaFormatter $formatter
+   * @param boolean $recursive Enhance validator schema recursively
    */
-  public function enhanceValidator(sfValidatorBase $validator, $object = null, $recursive = false)
+  public function enhanceValidator(sfValidatorBase $validator, $object = null, sfWidgetFormSchemaFormatter $formatter = null, $recursive = false)
   {
     foreach (self::getLineage($validator) as $class)
     {
       if (isset($this->config['validators'][$class]))
       {
-        $config = $this->processValidatorConfig($this->config['validators'][$class]);
+        $config = $this->processValidatorConfig($this->config['validators'][$class], $object, $formatter);
 
         foreach ($config['options'] as $name => $value)
         {
@@ -402,11 +413,24 @@ class sfViewableForm
       }
     }
 
-    if ($recursive && $validator instanceof sfValidatorSchema)
+    if ($validator instanceof sfValidatorSchema)
     {
-      foreach ($validator->getFields() as $v)
+      if ($preValidator = $validator->getPreValidator())
       {
-        $this->enhanceValidator($v, $object, $recursive);
+        $this->enhanceValidator($preValidator, $object, $formatter, true);
+      }
+
+      if ($postValidator = $validator->getPostValidator())
+      {
+        $this->enhanceValidator($postValidator, $object, $formatter, true);
+      }
+
+      if ($recursive)
+      {
+        foreach ($validator->getFields() as $v)
+        {
+          $this->enhanceValidator($v, $object, $formatter, true);
+        }
       }
     }
 
@@ -414,7 +438,7 @@ class sfViewableForm
     {
       foreach ($validator->getValidators() as $v)
       {
-        $this->enhanceValidator($v, $object, $recursive);
+        $this->enhanceValidator($v, $object, $formatter, $recursive);
       }
     }
   }
@@ -448,10 +472,11 @@ class sfViewableForm
    * 
    * @param  array $config
    * @param  mixed $object
+   * @param  sfWidgetFormSchemaFormatter $formatter
    * 
    * @return array An associative array of options and attributes
    */
-  protected function processWidgetConfig(array $config, $object = null)
+  protected function processWidgetConfig(array $config, $object = null, sfWidgetFormSchemaFormatter $formatter = null)
   {
     if (!isset($config['options']) && !isset($config['attributes']))
     {
@@ -459,7 +484,7 @@ class sfViewableForm
     }
 
     $config = array_merge(array('options' => array(), 'attributes' => array()), $config);
-    $config = $this->replaceConstants($config, $object);
+    $config = $this->replaceConstants($config, $object, $formatter);
 
     return $config;
   }
@@ -469,10 +494,11 @@ class sfViewableForm
    * 
    * @param  array $config
    * @param  mixed $object
+   * @param  sfWidgetFormSchemaFormatter $formatter
    * 
    * @return array An associative array of options and attributes
    */
-  protected function processValidatorConfig(array $config, $object = null)
+  protected function processValidatorConfig(array $config, $object = null, sfWidgetFormSchemaFormatter $formatter = null)
   {
     if (!isset($config['options']) && !isset($config['messages']))
     {
@@ -480,7 +506,7 @@ class sfViewableForm
     }
 
     $config = array_merge(array('options' => array(), 'messages' => array()), $config);
-    $config = $this->replaceConstants($config, $object);
+    $config = $this->replaceConstants($config, $object, $formatter);
 
     return $config;
   }
@@ -495,33 +521,80 @@ class sfViewableForm
    * 
    * @return string
    */
-  protected function replaceConstants($subject, $object = null)
+  protected function replaceConstants($subject, $object = null, sfWidgetFormSchemaFormatter $formatter = null)
   {
     if (is_array($subject))
     {
       foreach ($subject as $key => $value)
       {
-        $subject[$key] = $this->replaceConstants($value, $object);
+        $subject[$key] = $this->replaceConstants($value, $object, $formatter);
       }
 
       return $subject;
     }
 
-    if (is_null($object) || false === strpos($subject, '%'))
+    if (is_null($object) || is_null($formatter) || false === strpos($subject, '%%'))
     {
       return $subject;
     }
 
-    if (preg_match_all('/%(\w+)%/', $subject, $matches))
+    if (preg_match_all('/%%(\w+)%%/', $subject, $matches))
     {
+      $vars = array();
+
       foreach ($matches[1] as $i => $name)
       {
         $method = 'get'.sfInflector::camelize($name);
-        $subject = str_replace($matches[0][$i], $object->$method(), $subject);
+        $vars[$matches[0][$i]] = $object->$method();
       }
+
+      $subject = $formatter->translate($subject, $vars);
     }
 
     return $subject;
+  }
+
+  /**
+   * Returns a form formatter for the supplied widget schema.
+   * 
+   * @param  sfWidgetFormSchema $widgetSchema
+   * @param  string $name A form formatter name or class
+   * 
+   * @return sfWidgetFormSchemaFormatter
+   * 
+   * @throws InvalidArgumentException If the formatter does not exist
+   */
+  protected function getFormFormatter(sfWidgetFormSchema $widgetSchema, $name)
+  {
+    if (class_exists($name) && is_subclass_of($name, 'sfWidgetFormSchemaFormatter'))
+    {
+      $formatter = new $name($widgetSchema);
+    }
+    else
+    {
+      $formatters = $widgetSchema->getFormFormatters();
+
+      if (isset($formatters[$name]))
+      {
+        $formatter = $formatters[$name];
+      }
+      else if (class_exists($class = 'sfWidgetFormSchemaFormatter'.ucfirst($name)))
+      {
+        $formatter = new $class($widgetSchema);
+      }
+      else
+      {
+        throw new InvalidArgumentException(sprintf('The form formatter "%s" does not exist.', $name));
+      }
+    }
+
+    if ($catalogue = $widgetSchema->getFormFormatter()->getTranslationCatalogue())
+    {
+      // use the same translation catalogue
+      $formatter->setTranslationCatalogue($catalogue);
+    }
+
+    return $formatter;
   }
 
   /**
