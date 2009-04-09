@@ -18,6 +18,9 @@ configuration file. Once this plugin in installed and enabled you can create a
           invalid: The username and password you entered were not recognized.
       sfGuardUserForm:
         _formatter: list
+      sfGuardUserRegisterForm:
+        terms:
+          label: I accept the [Terms of Use](@page?name=terms)
 
     widgets:
       myWidgetFormInputText:

@@ -547,15 +547,24 @@ class sfViewableForm
       return $subject;
     }
 
-    if (is_null($object) || is_null($formatter) || false === strpos($subject, '%%'))
+    // add links
+    if (false !== strpos($subject, ']('))
     {
-      return $subject;
+      preg_match_all('/\[([^\]]+)\]\(([^\)]+)\)/', $subject, $matches, PREG_SET_ORDER);
+      foreach ($matches as $match)
+      {
+        list($search, $text, $uri) = $match;
+        $link = sprintf('<a href="%s">%s</a>', sfContext::getInstance()->getController()->genUrl($uri), $text);
+        $subject = str_replace($search, $link, $subject);
+      }
     }
 
-    if (preg_match_all('/%%(\w+)%%/', $subject, $matches))
+    // add object values
+    if ($object && $formatter && false !== strpos($subject, '%%'))
     {
-      $vars = array();
+      preg_match_all('/%%(\w+)%%/', $subject, $matches);
 
+      $vars = array();
       foreach ($matches[1] as $i => $name)
       {
         $method = 'get'.sfInflector::camelize($name);
