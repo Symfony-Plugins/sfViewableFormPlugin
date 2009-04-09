@@ -10,6 +10,14 @@
  */
 class sfViewableForm
 {
+  static protected
+    $reservedNames = array(
+      '_formatter',
+      '_catalogue',
+      '_pre_validator',
+      '_post_validator',
+    );
+
   protected
     $dispatcher = null,
     $config     = array(),
@@ -229,6 +237,12 @@ class sfViewableForm
   protected function enhanceFormFields(sfFormFieldSchema $fieldSchema, $formClass, array $embeddedForms = array(), $object = null)
   {
     $widgetSchema = $fieldSchema->getWidget();
+
+    // test for reserved fields
+    if ($oops = array_intersect(self::$reservedNames, $widgetSchema->getPositions()))
+    {
+      throw new RuntimeException(sprintf('The form %s uses the following reserved field names: %s', $formClass, join(', ', $oops)));
+    }
 
     // enhance schemas
     $this->enhanceWidget($widgetSchema, $object);

@@ -2,7 +2,7 @@
 
 include dirname(__FILE__).'/../../bootstrap/unit.php';
 
-$t = new lime_test(17, new lime_output_color());
+$t = new lime_test(18, new lime_output_color());
 
 $yaml = <<<YML
 catalogue: forms
@@ -110,6 +110,18 @@ $t->isa_ok($form->getWidgetSchema()->getFormFormatter(), 'MyTableFormatter', '->
 
 // widgets
 $t->diag('widgets');
+
+$form = new sfForm();
+$form->setWidget('_catalogue', new sfWidgetFormInput());
+try
+{
+  enhance_form($form);
+  $t->fail('->enhanceForm() throws an exception if form includes reserved field names');
+}
+catch (RuntimeException $e)
+{
+  $t->pass('->enhanceForm() throws an exception if form includes reserved field names');
+}
 
 $form = new MyForm();
 enhance_form($form);
