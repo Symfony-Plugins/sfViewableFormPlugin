@@ -328,7 +328,7 @@ class sfViewableForm
 
           $field = $fieldSchema[$name];
           $widget = $field->getWidget();
-          $validator = $field->hasError() ? $field->getError() : null;
+          $validator = $field->hasError() ? $field->getError()->getValidator() : null;
 
           if (isset($params['label']))
           {
