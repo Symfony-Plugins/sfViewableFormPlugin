@@ -61,3 +61,38 @@ configuration will insert the value of `$object->getConfirmer()` into the
       RelationshipRequestForm:
         note:
           label: Please provide %%confirmer%% a note
+
+## Test your enhanced forms
+
+You can easily test your enhanced forms be creating an instance of
+`sfViewableForm` in your test script.
+
+    [php]
+    $enhancer = new sfViewableForm();
+    $enhancer->loadConfig(sfConfig::get('sf_root_dir').'/config/forms.yml');
+
+    $form = new sfForm();
+    $enhancer->enhanceForm($form);
+
+If you are testing a form's validators, bind the form _before_ enhancing it.
+
+    [php]
+    $enhancer = new sfViewableForm();
+    $enhancer->loadConfig(sfConfig::get('sf_root_dir').'/config/forms.yml');
+
+    $form = new sfForm();
+    $form->bind();
+    $enhancer->enhanceForm($form);
+
+The `->loadConfig()` method also takes an array of files, if you want to
+test a cascading configuration.
+
+    [php]
+    $enhancer = new sfViewableForm();
+    $enhancer->loadConfig(array(
+      sfConfig::get('sf_root_dir').'/config/forms.yml',
+      sfConfig::get('sf_root_dir').'/apps/frontend/config/forms.yml',
+    ));
+
+    $form = new sfForm();
+    $enhancer->enhanceForm($form);

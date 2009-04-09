@@ -103,6 +103,23 @@ class sfViewableForm
   }
 
   /**
+   * Loads configuration from a file.
+   * 
+   * Use this method in your unit tests.
+   * 
+   * @param string|array $file One or more YAML config files
+   */
+  public function loadConfig($files)
+  {
+    if (!is_array($files))
+    {
+      $files = array($files);
+    }
+
+    $this->setConfig(sfYamlConfigHandler::parseYamls($files));
+  }
+
+  /**
    * Returns true if the form has been enhanced.
    * 
    * @param  sfForm $form

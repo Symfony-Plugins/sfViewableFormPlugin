@@ -35,22 +35,8 @@ widgets:
     foo:   bar
 YML;
 
-function enhance_form($form)
-{
-  static $config;
-  global $yaml;
-
-  if (!$config)
-  {
-    $config = sfYaml::load($yaml);
-  }
-
-  $extra = new sfViewableForm();
-  $extra->setConfig($config);
-  $extra->enhanceForm($form);
-
-  return $form;
-}
+$enhancer = new sfViewableForm();
+$enhancer->setConfig(sfYaml::load($yaml));
 
 class MyTableFormatter extends sfWidgetFormSchemaFormatterTable
 {
@@ -103,7 +89,7 @@ class AnotherForm extends sfForm
 $t->diag('formatter');
 
 $form = new sfForm();
-enhance_form($form);
+$enhancer->enhanceForm($form);
 
 $t->is($form->getWidgetSchema()->getFormFormatter()->getTranslationCatalogue(), 'forms', '->enhanceForm() sets a global translation catalogue');
 $t->isa_ok($form->getWidgetSchema()->getFormFormatter(), 'MyTableFormatter', '->enhanceForm() sets global form formatter names');
@@ -115,7 +101,7 @@ $form = new sfForm();
 $form->setWidget('_catalogue', new sfWidgetFormInput());
 try
 {
-  enhance_form($form);
+  $enhancer->enhanceForm($form);
   $t->fail('->enhanceForm() throws an exception if form includes reserved field names');
 }
 catch (RuntimeException $e)
@@ -124,7 +110,7 @@ catch (RuntimeException $e)
 }
 
 $form = new MyForm();
-enhance_form($form);
+$enhancer->enhanceForm($form);
 
 $row = $form['email']->renderRow();
 
@@ -145,14 +131,14 @@ $t->diag('validators');
 
 $form = new MyForm();
 $form->bind(array('email' => 'foo'));
-enhance_form($form);
+$enhancer->enhanceForm($form);
 
 $t->like($form['email']->renderRow(), '/"foo" is not a valid email address\./', '->enhanceForm() sets validator messages based on validator class name');
 $t->like($form['email_again']->renderRow(), '/This is a required value\./', '->enhanceForm() sets validator messages based on an ancestor validator class name');
 
 $form = new MyForm();
 $form->bind(array('email' => 'abc@example.com', 'email_again' => 'def@example.com'));
-enhance_form($form);
+$enhancer->enhanceForm($form);
 
 $t->like($form['email']->renderRow(), '/The two email addresses must match\./', '->enhanceForm() set post validator messages based on form class name');
 
@@ -160,7 +146,7 @@ $t->like($form['email']->renderRow(), '/The two email addresses must match\./', 
 $t->diag('embedded forms');
 
 $form = new AnotherForm();
-enhance_form($form);
+$enhancer->enhanceForm($form);
 
 $row = $form['embedded']->renderRow();
 
