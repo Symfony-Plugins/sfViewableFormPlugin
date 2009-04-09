@@ -8,6 +8,7 @@ configuration file. Once this plugin in installed and enabled you can create a
     forms:
       sfGuardFormSignin:
         _formatter: mySigninFormFormatter
+        _catalogue: signin_form
         username:
           help: Please enter the username you selected during signup.
         _post_validator:
@@ -27,12 +28,16 @@ configuration file. Once this plugin in installed and enabled you can create a
       list:   myWidgetFormSchemaFormatterList
       custom: myWidgetFormSchemaFormatterCustom
 
+    catalogue: forms
+
 The effect of this configuration file is just as it appears. Custom error
 messages will be added to the `sfGuardFormSignin` form, the CSS class "text"
 will be added to all instances of `sfWidgetFormInput`, and a custom error
 message will be added to all instances of `sfValidatorEmail`. The
 `sfGuardFormSignin` form will use the `mySigninFormFormatter` formatter and
 `sfGuardUserForm` will use the `myWidgetFormSchemaFormatterList` formatter.
+All I18N translations will use the `forms` catalogue, except for
+`sfGuardFormSignin` which will use the `signin_form` catalogue.
 
 ## Model forms
 
