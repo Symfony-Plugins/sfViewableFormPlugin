@@ -336,7 +336,7 @@ class sfViewableForm
 
         foreach ($this->config['forms'][$class] as $name => $params)
         {
-          if (in_array($name, $skip))
+          if (in_array($name, $skip) || !isset($fieldSchema[$name]))
           {
             continue;
           }
@@ -565,7 +565,7 @@ class sfViewableForm
     }
 
     // add links
-    if (false !== strpos($subject, ']('))
+    if (sfContext::hasInstance() & false !== strpos($subject, ']('))
     {
       preg_match_all('/\[([^\]]+)\]\(([^\)]+)\)/', $subject, $matches, PREG_SET_ORDER);
       foreach ($matches as $match)
