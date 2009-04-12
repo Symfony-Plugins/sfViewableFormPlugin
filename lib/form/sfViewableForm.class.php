@@ -208,7 +208,7 @@ class sfViewableForm
       }
       else
       {
-        $array[$field] = $error->getMessage();
+        $array[$field] = strtr($error->getMessageFormat(), $error->getArguments());
       }
     }
 
@@ -221,7 +221,7 @@ class sfViewableForm
       }
       else
       {
-        $global[] = $error->getMessage();
+        $array[$field] = strtr($error->getMessageFormat(), $error->getArguments());
       }
     }
 
