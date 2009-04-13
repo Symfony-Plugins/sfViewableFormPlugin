@@ -184,8 +184,15 @@ class sfViewableForm
 
     if ($request->isXmlHttpRequest() && sfConfig::get('app_viewable_form_send_ajax_json_errors'))
     {
+      $json = json_encode($this->mapErrorSchemaToArray($form->getErrorSchema()));
+
+      if (sfConfig::get('sf_logging_enabled'))
+      {
+        $this->dispatcher->notify(new sfEvent($this, 'application.log', array('Send JSON error response: '.$json)));
+      }
+
       $response->setContentType('application/json');
-      $response->setContent(json_encode($this->mapErrorSchemaToArray($form->getErrorSchema()))."\n");
+      $response->setContent($json);
       $response->send();
 
       throw new sfStopException();
