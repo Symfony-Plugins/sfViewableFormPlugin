@@ -224,11 +224,11 @@ class sfViewableForm
     {
       if ($error instanceof sfValidatorErrorSchema)
       {
-        $global[] = $this->mapErrorSchemaToArray($error);
+        $global = array_merge($global, $this->mapErrorSchemaToArray($error));
       }
       else
       {
-        $array[$field] = strtr($error->getMessageFormat(), $error->getArguments());
+        $global[] = strtr($error->getMessageFormat(), $error->getArguments());
       }
     }
 
